@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  # 1. The Backend Service (FastAPI + Polars)
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: better-spotify-wrapped
+    ports:
+      - "8000:8000" 
+    volumes:
+      - ./backend:/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    environment:
+      - FRONTEND_URL=http://localhost:3000
+
+  # 2. The Frontend Service (Next.js)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: spotify-viz-frontend
+    ports:
+      # Expose to the host machine
+      - "3000:3000"
+    volumes:
+      # Mount the code
+      - ./frontend:/app
+      # Cache node modules separately for faster build times
+      - /app/node_modules
+    # Tell Next.js where the API lives
+    environment:
+      - NEXT_PUBLIC_API_URL=http://backend:8000
+    # Start the Next.js development server
+    command: npm run dev
+    # Ensures the backend is ready before the frontend tries to start
+    depends_on:
+      - backend
