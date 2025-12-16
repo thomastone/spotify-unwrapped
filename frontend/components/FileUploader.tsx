@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Upload, Loader2, Music } from "lucide-react";
+import { useAuth } from "../context/AuthContext";
 
 interface FileUploaderProps {
   onDataReceived: (data: any) => void;
@@ -10,9 +11,15 @@ interface FileUploaderProps {
 export default function FileUploader({ onDataReceived }: FileUploaderProps) {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { token } = useAuth();
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files?.length) return;
+
+    if (!token) {
+        setError("You must be logged in to upload files.");
+        return;
+    }
 
     setUploading(true);
     setError(null);
@@ -28,15 +35,21 @@ export default function FileUploader({ onDataReceived }: FileUploaderProps) {
       // is talking to the API, not the Docker container.
       const response = await fetch("http://localhost:8000/api/process", {
         method: "POST",
+        headers: {
+            "Authorization": `Bearer ${token}`
+        },
         body: formData,
       });
 
-      if (!response.ok) throw new Error("Upload failed");
+      if (!response.ok) {
+          const errData = await response.json().catch(() => ({ detail: "Upload failed" }));
+          throw new Error(errData.detail || "Upload failed");
+      }
 
       const data = await response.json();
       onDataReceived(data); // Pass data back up to the parent
-    } catch (err) {
-      setError("Failed to process files. Make sure the backend is running!");
+    } catch (err: any) {
+      setError(err.message || "Failed to process files. Make sure the backend is running!");
       console.error(err);
     } finally {
       setUploading(false);

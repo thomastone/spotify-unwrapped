@@ -1,12 +1,10 @@
-version: '3.8'
-
 services:
   # 1. The Backend Service (FastAPI + Polars)
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: better-spotify-wrapped
+    container_name: spotify-unwrapped-backend
     ports:
       - "8000:8000" 
     volumes:
@@ -14,21 +12,26 @@ services:
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     environment:
       - FRONTEND_URL=http://localhost:3000
+      - DATABASE_URL=postgresql://postgres:password@db:5432/spotify_unwrapped
+    depends_on:
+      - db
 
   # 2. The Frontend Service (Next.js)
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: spotify-viz-frontend
+    container_name: spotify-unwrapped-frontend
     ports:
       # Expose to the host machine
       - "3000:3000"
     volumes:
-      # Mount the code
+      # Mount the code to /app (matching Dockerfile WORKDIR)
       - ./frontend:/app
-      # Cache node modules separately for faster build times
+      # Anonymous volume for node_modules to use the container's installed dependencies
       - /app/node_modules
+      # Anonymous volume for Next.js build artifacts
+      - /app/.next
     # Tell Next.js where the API lives
     environment:
       - NEXT_PUBLIC_API_URL=http://backend:8000
@@ -37,3 +40,20 @@ services:
     # Ensures the backend is ready before the frontend tries to start
     depends_on:
       - backend
+
+  # 3. The Database Service (PostgreSQL)
+  db:
+    image: postgres:15-alpine
+    container_name: spotify-unwrapped-db
+    restart: always
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=spotify_unwrapped
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
